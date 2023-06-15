@@ -147,7 +147,7 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
         time_cond_proj_dim: Optional[int] = None,
         conv_in_kernel: int = 3,
         conv_out_kernel: int = 3,
-        transformer_num_layers: int = 1,
+        transformer_num_layers: Tuple[int] = (1,1,1,1),
         projection_class_embeddings_input_dim: Optional[int] = None,
     ):
         super().__init__()
@@ -225,6 +225,7 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
             input_channel = output_channel
             output_channel = block_out_channels[i]
             is_final_block = i == len(block_out_channels) - 1
+            
 
             down_block = get_down_block(
                 down_block_type,
@@ -244,7 +245,7 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
                 only_cross_attention=only_cross_attention[i],
                 upcast_attention=upcast_attention,
                 resnet_time_scale_shift=resnet_time_scale_shift,
-                transformer_num_layers=transformer_num_layers,
+                transformer_num_layers=transformer_num_layers[i],
             )
             self.down_blocks.append(down_block)
 
@@ -263,7 +264,7 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
                 dual_cross_attention=dual_cross_attention,
                 use_linear_projection=use_linear_projection,
                 upcast_attention=upcast_attention,
-                transformer_num_layers=transformer_num_layers,
+                transformer_num_layers=transformer_num_layers[-1],
             )
         elif mid_block_type == "UNetMidBlock2DSimpleCrossAttn":
             self.mid_block = UNetMidBlock2DSimpleCrossAttn(
@@ -288,6 +289,7 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
         # up
         reversed_block_out_channels = list(reversed(block_out_channels))
         reversed_attention_head_dim = list(reversed(attention_head_dim))
+        reversed_transformer_num_layers = list(reversed(transformer_num_layers))
         only_cross_attention = list(reversed(only_cross_attention))
 
         output_channel = reversed_block_out_channels[0]
@@ -297,7 +299,6 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
             prev_output_channel = output_channel
             output_channel = reversed_block_out_channels[i]
             input_channel = reversed_block_out_channels[min(i + 1, len(block_out_channels) - 1)]
-
             # add upsample block for all BUT final layer
             if not is_final_block:
                 add_upsample = True
@@ -323,7 +324,7 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
                 only_cross_attention=only_cross_attention[i],
                 upcast_attention=upcast_attention,
                 resnet_time_scale_shift=resnet_time_scale_shift,
-                transformer_num_layers=transformer_num_layers,
+                transformer_num_layers=reversed_transformer_num_layers[i],
             )
             self.up_blocks.append(up_block)
             prev_output_channel = output_channel
